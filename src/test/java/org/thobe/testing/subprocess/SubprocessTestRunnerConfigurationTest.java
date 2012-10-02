@@ -15,7 +15,7 @@ public class SubprocessTestRunnerConfigurationTest
     public static class Configuration implements SubprocessConfigurator
     {
         @Override
-        public <T extends SubprocessConfiguration<T>> void configureProcess( T starter )
+        public void configureProcess( SubprocessConfiguration starter )
         {
             starter.vmArg( "-D" + KEY + "=" + VALUE );
         }

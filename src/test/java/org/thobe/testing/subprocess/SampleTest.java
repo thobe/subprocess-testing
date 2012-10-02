@@ -6,7 +6,7 @@ import org.junit.runner.RunWith;
 
 @Ignore
 @RunWith(SubprocessTestRunner.class)
-public class SampleTest
+ public class SampleTest
 {
     @Test
     @Debugger.Using(BreakPoints.class)

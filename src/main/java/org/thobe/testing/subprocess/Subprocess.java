@@ -19,7 +19,7 @@ import static java.lang.reflect.Modifier.isStatic;
 
 public class Subprocess
 {
-    public static class Starter implements SubprocessConfiguration<Starter>
+    public static class Starter extends SubprocessConfiguration<Starter>
     {
         private String java = "java";
         private Writer stdOut = new PrintWriter( System.out ), stdErr = new PrintWriter( System.err );
@@ -71,23 +71,11 @@ public class Subprocess
         }
 
         @Override
-        public Starter stdOut( Writer stdOut )
-        {
-            return stdOut( stdOut, null );
-        }
-
-        @Override
         public Starter stdErr( Writer stdErr, String prefix )
         {
             this.stdErr = NullWriter.filter( stdErr );
             stdErrPrefix = prefix;
             return this;
-        }
-
-        @Override
-        public Starter stdErr( Writer stdErr )
-        {
-            return stdOut( stdErr, null );
         }
 
         public Starter arg( String arg )
@@ -113,12 +101,18 @@ public class Subprocess
             return new Subprocess( preStart() );
         }
 
-        protected Starter preStart()
+        @Override
+        SubprocessConfiguration config()
         {
             return this;
         }
 
-        protected Subprocess postStart( Subprocess subprocess )
+        Starter preStart()
+        {
+            return this;
+        }
+
+        Subprocess postStart( Subprocess subprocess )
         {
             return subprocess;
         }

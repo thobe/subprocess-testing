@@ -49,7 +49,7 @@ public abstract class Task<STATE, RESULT> implements Serializable
         <RESULT> RESULT run( Task<STATE, RESULT> task ) throws Exception;
     }
 
-    public static final class RunnerStarter<STATE> implements SubprocessConfiguration<RunnerStarter<STATE>>
+    public static final class RunnerStarter<STATE> extends SubprocessConfiguration<RunnerStarter<STATE>>
     {
         final Subprocess.Starter starter;
         private long timeout = 5;
@@ -67,34 +67,10 @@ public abstract class Task<STATE, RESULT> implements Serializable
             return this;
         }
 
-        public RunnerStarter<STATE> vmArg( String arg )
+        @Override
+        SubprocessConfiguration config()
         {
-            starter.vmArg( arg );
-            return this;
-        }
-
-        public RunnerStarter<STATE> stdOut( Writer stdOut, String prefix )
-        {
-            starter.stdOut( stdOut, prefix );
-            return this;
-        }
-
-        public RunnerStarter<STATE> stdOut( Writer stdOut )
-        {
-            starter.stdOut( stdOut );
-            return this;
-        }
-
-        public RunnerStarter<STATE> stdErr( Writer stdErr, String prefix )
-        {
-            starter.stdErr( stdErr, prefix );
-            return this;
-        }
-
-        public RunnerStarter<STATE> stdErr( Writer stdErr )
-        {
-            starter.stdErr( stdErr );
-            return this;
+            return starter;
         }
 
         public Runner<STATE> start() throws IOException, TimeoutException, InterruptedException

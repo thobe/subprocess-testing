@@ -2,15 +2,52 @@ package org.thobe.testing.subprocess;
 
 import java.io.Writer;
 
-public interface SubprocessConfiguration<T extends SubprocessConfiguration<T>>
+public abstract class SubprocessConfiguration<T extends SubprocessConfiguration<T>>
 {
-    T stdOut( Writer stdOut, String prefix );
+    public T stdOut( Writer stdOut, String prefix )
+    {
+        config().stdOut( stdOut, prefix );
+        return cast();
+    }
 
-    T stdOut( Writer stdOut );
+    public final T stdOut( Writer stdOut )
+    {
+        return stdOut( stdOut, null );
+    }
 
-    T stdErr( Writer stdErr, String prefix );
+    public T stdErr( Writer stdErr, String prefix )
+    {
+        config().stdErr( stdErr, prefix );
+        return cast();
+    }
 
-    T stdErr( Writer stdErr );
+    public final T stdErr( Writer stdErr )
+    {
+        return stdErr( stdErr, null );
+    }
 
-    T vmArg( String arg );
+    public T vmArg( String arg )
+    {
+        config().vmArg( arg );
+        return cast();
+    }
+
+    public T config( SubprocessConfigurator config )
+    {
+        config.configureProcess( this );
+        return cast();
+    }
+
+    abstract SubprocessConfiguration config();
+
+    SubprocessConfiguration()
+    {
+        // limited subclasses
+    }
+
+    @SuppressWarnings("unchecked")
+    private T cast()
+    {
+        return (T) this;
+    }
 }

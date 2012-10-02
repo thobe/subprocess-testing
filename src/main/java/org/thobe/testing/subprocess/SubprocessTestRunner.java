@@ -24,7 +24,6 @@ import org.junit.runners.model.TestClass;
 
 public class SubprocessTestRunner extends Runner
 {
-
     @Target(ElementType.TYPE)
     @Retention(RetentionPolicy.RUNTIME)
     public @interface SubprocessConfiguration
