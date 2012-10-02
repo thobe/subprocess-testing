@@ -80,8 +80,8 @@ public class TestProcesses implements TestRule
             @Override
             Object pre( Subprocess.Starter starter )
             {
-                WaitingWriter writer = new WaitingWriter( starter.stdOut() );
-                starter.stdOut( writer, starter.stdOutPrefix() );
+                WaitingWriter writer = new WaitingWriter( starter.stdErr() );
+                starter.stdOut( writer, starter.stdErrPrefix() );
                 return writer;
             }
 
