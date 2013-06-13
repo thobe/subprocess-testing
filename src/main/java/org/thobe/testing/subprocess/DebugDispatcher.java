@@ -1,6 +1,9 @@
 package org.thobe.testing.subprocess;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.util.List;
 import java.util.Map;
 
 import com.sun.jdi.VirtualMachine;
@@ -290,12 +293,35 @@ class DebugDispatcher implements Runnable
 
     static
     {
-        ListeningConnector first = null;
-        for ( ListeningConnector conn : virtualMachineManager().listeningConnectors() )
+        List<ListeningConnector> connectors;
+        PrintStream err = System.err;
+        try
         {
-            first = conn;
-            break;
+            System.setErr( new PrintStream( new ByteArrayOutputStream() ) );
         }
-        connector = first;
+        catch ( SecurityException e )
+        {
+            // ignore
+        }
+        try
+        {
+            connectors = virtualMachineManager().listeningConnectors();
+        }
+        finally
+        {
+            try
+            {
+                System.setErr( err );
+            }
+            catch ( SecurityException e )
+            {
+                // ignore
+            }
+        }
+        if ( connectors.isEmpty() )
+        {
+            throw new LinkageError( "No JDI connectors available." );
+        }
+        connector = connectors.get( 0 );
     }
 }

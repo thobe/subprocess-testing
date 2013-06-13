@@ -1,6 +1,7 @@
 package org.thobe.testing.subprocess;
 
 import java.io.Serializable;
+import java.lang.annotation.Annotation;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -10,8 +11,17 @@ import java.lang.reflect.InvocationTargetException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.sun.jdi.Location;
+import com.sun.jdi.Method;
+import com.sun.jdi.ThreadReference;
+import com.sun.jdi.Value;
+import com.sun.jdi.VirtualMachine;
+import com.sun.jdi.request.MethodEntryRequest;
+import com.sun.jdi.request.MethodExitRequest;
 import org.junit.runner.Description;
 import org.junit.runner.Result;
 import org.junit.runner.Runner;
@@ -20,7 +30,6 @@ import org.junit.runner.notification.RunListener;
 import org.junit.runner.notification.RunNotifier;
 import org.junit.runners.JUnit4;
 import org.junit.runners.model.InitializationError;
-import org.junit.runners.model.TestClass;
 
 public class SubprocessTestRunner extends Runner
 {
@@ -52,8 +61,12 @@ public class SubprocessTestRunner extends Runner
             {
                 config.value().newInstance().configureProcess( starter );
             }
+            List<Description> debuggedMethods = collectAnnotated( new ArrayList<Description>(),
+                                                                  createRunner( testClass ).getDescription(),
+                                                                  Debugger.Using.class );
+
             Task.Runner<RunnerFactory> runner;
-            if ( new TestClass( testClass ).getAnnotatedMethods( Debugger.Using.class ).isEmpty() )
+            if ( debuggedMethods.isEmpty() )
             {
                 this.handler = null;
                 runner = starter.start();
@@ -69,6 +82,20 @@ public class SubprocessTestRunner extends Runner
             subprocess.terminate();
             throw new InitializationError( e );
         }
+    }
+
+    private static List<Description> collectAnnotated( List<Description> result, Description description,
+                                                       Class<? extends Annotation> annotation )
+    {
+        if ( description.getAnnotation( annotation ) != null )
+        {
+            result.add( description );
+        }
+        for ( Description child : description.getChildren() )
+        {
+            collectAnnotated( result, child, annotation );
+        }
+        return result;
     }
 
     private interface RemoteRunner extends Remote
@@ -215,51 +242,56 @@ public class SubprocessTestRunner extends Runner
             {
                 throw new IllegalArgumentException( "Subprorocess does not have access to the test class.", e );
             }
-            SubprocessRunWith runWith = testClass.getAnnotation( SubprocessRunWith.class );
-            Class<? extends Runner> runnerClass;
-            if ( runWith != null )
-            {
-                runnerClass = runWith.value();
-            }
-            else
-            {
-                runnerClass = JUnit4.class;
-            }
-            Constructor<? extends Runner> constructor;
-            try
-            {
-                constructor = runnerClass.getConstructor( Class.class );
-            }
-            catch ( NoSuchMethodException e )
-            {
-                throw new IllegalArgumentException( "Test Runner class " + runnerClass.getName() +
-                                                    " does not have a public constructor with a single class argument.",
-                                                    e );
-            }
-            Runner runner;
-            try
-            {
-                runner = constructor.newInstance( testClass );
-            }
-            catch ( InvocationTargetException e )
-            {
-                Throwable exc = e.getTargetException();
-                if ( exc instanceof Error )
-                {
-                    throw (Error) exc;
-                }
-                if ( exc instanceof RuntimeException )
-                {
-                    throw (RuntimeException) exc;
-                }
-                throw new IllegalArgumentException( "Could not instantiate test Runner " + runnerClass.getName(), exc );
-            }
-            catch ( Exception e )
-            {
-                throw new IllegalArgumentException( "Could not instantiate test Runner " + runnerClass.getName(), e );
-            }
-            return new LocalRunner( runner );
+            return new LocalRunner( SubprocessTestRunner.createRunner( testClass ) );
         }
+    }
+
+    private static Runner createRunner( Class<?> testClass )
+    {
+        SubprocessRunWith runWith = testClass.getAnnotation( SubprocessRunWith.class );
+        Class<? extends Runner> runnerClass;
+        if ( runWith != null )
+        {
+            runnerClass = runWith.value();
+        }
+        else
+        {
+            runnerClass = JUnit4.class;
+        }
+        Constructor<? extends Runner> constructor;
+        try
+        {
+            constructor = runnerClass.getConstructor( Class.class );
+        }
+        catch ( NoSuchMethodException e )
+        {
+            throw new IllegalArgumentException( "Test Runner class " + runnerClass.getName() +
+                                                " does not have a public constructor with a single class argument.",
+                                                e );
+        }
+        Runner runner;
+        try
+        {
+            runner = constructor.newInstance( testClass );
+        }
+        catch ( InvocationTargetException e )
+        {
+            Throwable exc = e.getTargetException();
+            if ( exc instanceof Error )
+            {
+                throw (Error) exc;
+            }
+            if ( exc instanceof RuntimeException )
+            {
+                throw (RuntimeException) exc;
+            }
+            throw new IllegalArgumentException( "Could not instantiate test Runner " + runnerClass.getName(), exc );
+        }
+        catch ( Exception e )
+        {
+            throw new IllegalArgumentException( "Could not instantiate test Runner " + runnerClass.getName(), e );
+        }
+        return runner;
     }
 
     private static class LocalRunner extends UnicastRemoteObject implements RemoteRunner
@@ -347,16 +379,18 @@ public class SubprocessTestRunner extends Runner
 
     private static class Handler extends DebugHandler
     {
-        private final AtomicReference<Debugger> debugger = new AtomicReference<Debugger>();
+        private final AtomicReference<DebuggerManager> debugger = new AtomicReference<DebuggerManager>();
+        private VirtualMachine vm;
 
-        void setup( Description description, RunNotifier notifier )
+        synchronized void setup( Description description, RunNotifier notifier )
         {
             Debugger.Using debugUsing = description.getAnnotation( Debugger.Using.class );
             if ( debugUsing != null )
             {
                 try
                 {
-                    this.debugger.set( debugUsing.value().newInstance() );
+                    DebuggerManager debugger = new DebuggerManager( debugUsing.value().newInstance(), this, vm );
+                    this.debugger.set( debugger );
                 }
                 catch ( Throwable e )
                 {
@@ -367,18 +401,47 @@ public class SubprocessTestRunner extends Runner
 
         void destroy( Description description, RunNotifier notifier )
         {
-            Debugger debugger = this.debugger.getAndSet( null );
-            if (debugger != null)
+            DebuggerManager debugger = this.debugger.getAndSet( null );
+            if ( debugger != null )
             {
                 try
                 {
-                    debugger.finish();
+                    debugger.destroy( vm );
                 }
                 catch ( Throwable e )
                 {
                     notifier.fireTestFailure( new Failure( description, e ) );
                 }
             }
+        }
+
+        @Override
+        protected synchronized void onStart( SuspendPolicy suspension, VirtualMachine virtualMachine,
+                                             ThreadReference thread )
+        {
+            this.vm = virtualMachine;
+        }
+
+        @Override
+        protected void onDisconnect()
+        {
+            this.vm = null;
+        }
+
+        @Override
+        protected void onMethodEntry( SuspendPolicy suspension, VirtualMachine virtualMachine,
+                                      ThreadReference thread, MethodEntryRequest request, Method method,
+                                      Location location )
+        {
+            debugger.get().invokeHandle( request, method, thread );
+        }
+
+        @Override
+        protected void onMethodExit( SuspendPolicy suspension, VirtualMachine virtualMachine,
+                                     ThreadReference thread, MethodExitRequest request, Method method,
+                                     Value value, Location location )
+        {
+            debugger.get().invokeHandle( request, method, thread );
         }
     }
 }

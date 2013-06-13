@@ -1,5 +1,6 @@
 package org.thobe.testing.subprocess;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Writer;
@@ -21,7 +22,7 @@ public class Subprocess
 {
     public static class Starter extends SubprocessConfiguration<Starter>
     {
-        private String java = "java";
+        private String java = java_home_bin( "java" );
         private Writer stdOut = new PrintWriter( System.out ), stdErr = new PrintWriter( System.err );
         private String stdOutPrefix, stdErrPrefix;
         private final Class<?> main;
@@ -217,6 +218,11 @@ public class Subprocess
         outForwarder.await( time - unit.convert( System.nanoTime() - start, TimeUnit.NANOSECONDS ), unit );
         errForwarder.await( time - unit.convert( System.nanoTime() - start, TimeUnit.NANOSECONDS ), unit );
         return result;
+    }
+
+    private static String java_home_bin( String bin )
+    {
+        return new File( new File( System.getProperty( "java.home" ), "bin" ), bin ).getAbsolutePath();
     }
 
     private static String codeSourceOf( Class<?> cls )
