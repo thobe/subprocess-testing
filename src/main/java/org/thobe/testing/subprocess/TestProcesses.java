@@ -81,7 +81,7 @@ public class TestProcesses implements TestRule
             Object pre( Subprocess.Starter starter )
             {
                 WaitingWriter writer = new WaitingWriter( starter.stdErr() );
-                starter.stdOut( writer, starter.stdErrPrefix() );
+                starter.stdErr( writer, starter.stdErrPrefix() );
                 return writer;
             }
 
